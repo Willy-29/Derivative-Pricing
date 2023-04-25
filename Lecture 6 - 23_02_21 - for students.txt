@@ -1,0 +1,277 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Mar 15 17:49:21 2018
+
+@author: j-bonnefoy
+"""
+
+""" Prelim' """
+
+import numpy as np
+import pylab as plt
+from random import gauss
+from math import exp, sqrt, log
+
+""" Extracting ZC from a Market Curve """
+
+# question 1 : loading of IR Market Curve from Excel
+
+import xlrd # import the library to read and extract data from Excel
+
+path = r"C:\..."
+book = xlrd.open_workbook(path) # open the .xls file
+sheet = book.sheet_by_index(0) # select the 1st spreadsheet
+
+IRCurve = []
+for row_index in range(sheet.nrows):
+   row= ""
+   Lign = []
+   for col_index in range(sheet.ncols):
+      value = sheet.cell(rowx=row_index,colx=col_index).value
+      Lign.append(value)
+   IRCurve.append(Lign)
+
+print(IRCurve)
+
+# question 2 : Extracting ZC values and rates
+ 
+# a)  Build the Zero-Coupon curve
+def extractZCCurve(IRCurve):
+   
+    ZC = []
+    
+    for i in range(4): # The formula is valid for all rates with maturity < 1yr
+        maturity = IRCurve[i+1][0] # beware of the indices
+        ZCrate = "To be filled" 
+        ZCvalue = "To be filled" 
+        ZC.append([maturity,ZCrate,ZCvalue]) #to store both ZCRate at Value
+    
+    for i in range(4,len(IRCurve)-1): # For swaps with maturity >= 2yr
+        maturity = IRCurve[i+1][0]
+        ZCvalue = "To be filled" 
+        ZCrate = "To be filled" 
+        ZC.append([maturity,ZCrate,ZCvalue]) #to store both ZCRate at Value
+        
+    ZC = np.array(ZC) #to transform the list in np.array
+    return ZC
+
+ZCCurve = extractZCCurve(IRCurve)
+print(ZCCurve)
+
+# b)  Plot the curves
+plt.plot(ZCCurve[:,0],ZCCurve[:,1],label='ZC rate')
+plt.plot(ZCCurve[:,0],[IRCurve[i][2] for i in range(1,34)],label='Market rate')
+plt.legend()
+plt.show()
+
+plt.plot(ZCCurve[:,0],ZCCurve[:,2],label='ZC value')
+plt.legend()
+plt.show()
+
+
+# question 3 : pricing of a swap
+
+#a) Maturity 10yr, K = 10yr swap rate
+maturity = 10
+spread = 0.000
+fixedRate = "To be filled using the adequate swap rate + the spread"
+
+swapPrice = "To be filled using the swap price formula"
+checkSwapPrice = -spread*sum([ ZCCurve[t+3,2] for t in range(maturity) ] ) #to check the price
+print(swapPrice)
+print(checkSwapPrice)
+
+#b) Maturity 20yr, K = 20yr swap rate + 50bps
+
+
+# question 4 : sensitivities of the swaps.
+
+IRCurveShifted = [IRCurve[0]]
+for i in range(1,34):
+    IRCurveShifted.append([IRCurve[i][0],IRCurve[i][1],IRCurve[i][2]+0.01])
+ZCCurveShifted = extractZCCurve(IRCurveShifted)
+print(ZCCurveShifted)
+
+plt.plot(ZCCurve[:,0],ZCCurve[:,1],label='ZC rate')
+plt.plot(ZCCurve[:,0],ZCCurveShifted[:,1],label='ZC rate shifted')
+plt.legend()
+plt.show()
+
+maturity = 10
+spread = 0.000
+fixedRate = IRCurve[maturity+3][2] + spread
+
+swapPrice = 1.0 - ZCCurveShifted[maturity+2,2] - fixedRate*sum([ ZCCurveShifted[t+3,2] for t in range(maturity) ] )
+print(swapPrice)
+
+maturity = 20
+spread = 0.005
+fixedRate = IRCurve[maturity+3][2] + spread
+
+swapPrice = 1.0 - ZCCurveShifted[maturity+2,2] - fixedRate*sum([ ZCCurveShifted[t+3,2] for t in range(maturity) ] )
+print(swapPrice)
+
+
+
+""" Vasicek Model """
+
+# Section 1 : ZC Bond Valuation
+
+# question 1 : Closed Form Formula
+
+def VasicekZCPrice(t,T,k,theta,sigma,rt):
+    B = "To be filled"
+    A = "To be filled"
+    ZC = A * exp(-B*rt)
+    return ZC
+
+# rappel de la dynamique et des paramètres: dr_t = -k*(theta - r_t)*dt + sigma *dW_t
+
+k = 0.5
+theta = 0.04
+sigma = 0.015
+r = 0.02
+t = 0
+T = 10
+print(VasicekZCPrice(t,T,k,theta,sigma,r))  
+
+# question 2 : ZC by Monte-Carlo
+
+def VasicekZCPriceByMC(t,T,k,theta,sigma,rt,nbSimul,nbSteps):
+    
+    dt = (T-t) / nbSteps
+    sqrt_dt = sqrt(dt)
+    std = sigma * sqrt( (1 - exp(-2*k*dt)) / (2*k) )
+    myMCestimate = 0
+    for i in range(nbSimul):
+        spotRate = rt
+        integralSpotRate = 0
+        for j in range(nbSteps):
+            integralSpotRate += spotRate #to compute the integral of the short rate process
+            spotRate = spotRate * exp(-k*dt) + theta * (1 - exp(-k*dt)) + std * gauss(0.0,1.0)
+        integralSpotRate *= dt
+        myMCestimate += "To be filled"
+    myMCestimate /= nbSimul
+    return myMCestimate
+
+nbSimul = 10000
+nbSteps = 100
+print(VasicekZCPriceByMC(t,T,k,theta,sigma,r,nbSimul,nbSteps))  
+
+
+#Caplet paying at time t_i+1 the libor oberved at t_i against strike K
+#t_i = T
+#t_(i+1) = S
+
+def VasicekCapletPriceByMC(t,T,S,strike,k,theta,sigma,rt,nbSimul,nbSteps):
+    dt = (T-t) / nbSteps
+    sqrt_dt = sqrt(dt)
+    std = sigma * sqrt( (1 - exp(-2*k*dt)) / (2*k) )
+    myMCestimate = 0
+    for i in range(nbSimul):
+        spotRate = rt
+        integralSpotRate = 0
+        for j in range(nbSteps):
+            integralSpotRate += spotRate #to compute the integral of the short rate process
+            spotRate = spotRate * exp(-k*dt) + theta * (1 - exp(-k*dt)) + std * gauss(0.0,1.0)
+        integralSpotRate *= dt
+        ZC = VasicekZCPrice(T,S,k,theta,sigma,spotRate)
+        myMCestimate += "To be filled"
+    myMCestimate /= nbSimul
+    return myMCestimate
+
+t = 0
+T = 1
+S = 2
+strike = 0.02
+k = 0.5
+theta = 0.04
+sigma = 0.015
+rt = 0.02
+print(VasicekCapletPriceByMC(t,T,S,strike,k,theta,sigma,rt,nbSimul,nbSteps))
+
+
+
+
+# question 3 : Print the ZC from Market vs. the ZC from Model
+
+plt.plot([t for t in range(30)], [VasicekZCPrice(0,t,a,theta,sigma,r) for t in range(30)],label='ZC model')
+plt.plot(ZCCurve[:,0],ZCCurve[:,2],label='ZC from market')
+plt.legend()
+plt.show()
+
+# Section 2 : model Calibration
+
+# question 1 : load fsolve and root function.
+
+from scipy.optimize import root
+
+# question 2 : help for root.
+
+help(root)
+
+# question 3 : implementation of the Loss Function
+
+def LossFunction(param,ZCMarket,T):    
+    
+    log_a = param[0] # exponential transformation for a parameter
+    theta = param[1]
+    sigma = param[2]
+    r = param[3]
+    
+    L = 0
+    for i in range(len(ZCMarket)):
+        L += "To be filled"
+    return [L,0,0,0] #For the function root to work, the return type should have the same length as the parameters
+
+# question 4 : run calibration and print calibrated parameters.
+
+initParam = [log(a),theta,sigma,r]
+calib = root(LossFunction, initParam, (ZCCurve[:,2],ZCCurve[:,0]))
+calibParam = [exp(calib.x[0]),calib.x[1],calib.x[2],calib.x[3]]
+print(calibParam)
+
+# question 5 : plot
+
+plt.plot([t for t in range(1,31)], [(VasicekZCPrice(0,t,calibParam[0],calibParam[1],calibParam[2],calibParam[3]))**(-1.0/t)-1 for t in range(1,31)],label='ZC model')
+plt.plot(ZCCurve[:,0],ZCCurve[:,1],label='ZC from market')
+plt.legend()
+plt.show()
+
+plt.plot([t for t in range(31)], [VasicekZCPrice(0,t,calibParam[0],calibParam[1],calibParam[2],calibParam[3]) for t in range(31)],label='ZC model')
+plt.plot(ZCCurve[:,0],ZCCurve[:,2],label='ZC from market')
+plt.legend()
+plt.show()
+
+# Section 3 : swaption pricing in Vasicek
+
+def VasicekPayerSwaptionPriceByMC(t,dates,K,a,theta,sigma,r,nbSimul,nbSteps):
+    
+    T = dates[0]
+    dt = (T-t) / nbSteps
+    sqrt_dt = sqrt(dt)
+    rslt = 0
+    
+    for i in range(nbSimul):
+        
+        spotRate = r
+        integralSpotRate = 0
+        
+        for j in range(nbSteps):
+            spotRate +=  a*(theta-spotRate)*dt + sigma*sqrt_dt*gauss(0.0,1.0) # --> Instructions for the Euler Scheme of SDE, for exact simulation see ZC by MC
+            integralSpotRate += spotRate
+        integralSpotRate *= dt
+        
+        swapValue = "To be filled"
+        rslt += exp(-integralSpotRate) * max(swapValue,0)
+    
+    rslt /= nbSimul
+    return rslt
+
+nbSimul = 10000
+nbSteps = 100
+
+dates = [10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+K = 0.01
+
+print(VasicekPayerSwaptionPriceByMC(t,dates,K,a,theta,sigma,r,nbSimul,nbSteps))

@@ -1,0 +1,392 @@
+# -*- coding: utf-8 -*-
+"""
+Lecture 2
+@author: J-BONNEFOY
+"""
+
+import numpy as np
+import pylab as pl
+from random import gauss, uniform, randint
+from math import exp, sqrt, log
+import matplotlib.pyplot as plt
+import scipy as sp
+from scipy.stats import norm
+#from scipy.stats.mstats import mquantiles
+#import statsmodels.api as sm # import statsmodels 
+#from sklearn import linear_model
+
+
+""" 1 - The Black-Scholes Model """
+   
+# 1-Closed form formula
+
+def CallBS(St,t,Strike,Maturity,r,q,sigma):
+    
+    dt = Maturity - t #residual maturity of the option
+    d1 = ( 1.0 / ( sigma * sqrt( dt ) ) ) * (log(St /Strike) + (r-q + 0.5*sigma**2)*dt)
+    d0 = d1 - sigma*sqrt(dt)
+    price = St * exp(-q * dt) * norm.cdf(d1) - Strike * exp(-r*dt) * norm.cdf(d0)
+    return  price
+    
+# Call caracteristics
+Strike = 100
+Maturity = 0.5 # in years -> 0.5 is equivalent to ~6 months
+
+# Model parameters
+r = 0.00 # interest rate
+q = 0.00 # dividend rate
+sigma = 0.2 # volatlity
+
+t = 0
+St = 100
+    
+print(CallBS(St,t,Strike,Maturity,r,q,sigma)) 
+
+# 2-Delta & Gamma
+
+def CallDeltaBS(St,t,Strike,Maturity,r,q,sigma): #for the closed formula delta
+    dt = Maturity - t
+    d1 = ( 1.0 / ( sigma * sqrt( dt ) ) ) * (log(St /Strike) + (r-q + 0.5*sigma**2)*dt)
+    delta = exp(-q * dt) * norm.cdf(d1)
+    return  delta
+
+def CallDeltaFDBS(St,t,Strike,Maturity,r,q,sigma):
+    delta = (CallBS(St + 0.01,t,Strike,Maturity,r,q,sigma) 
+    - CallBS(St - 0.01,t,Strike,Maturity,r,q,sigma))/(2*0.01)
+    return  delta    
+    
+def CallGammaBS(St,t,Strike,Maturity,r,q,sigma):
+    
+    dt = Maturity - t
+    d1 = ( 1.0 / ( sigma * sqrt( dt ) ) ) * (log(St /Strike) + (r-q + 0.5*sigma**2)*dt)
+    gamma = exp(-q*dt) / (St*sigma*sqrt(dt)) * exp(- d1**2 / 2) / sqrt(2 *3.14)
+    return  gamma
+
+print(CallDeltaBS(St,t,Strike,Maturity,r,q,sigma))
+print(CallDeltaFDBS(St,t,Strike,Maturity,r,q,sigma))
+print(CallGammaBS(St,t,Strike,Maturity,r,q,sigma))
+    
+# 3-Vega    
+def CallVegaBS(St,t,Strike,Maturity,r,q,sigma):
+    
+    dt = Maturity - t
+    d1 = ( 1.0 / ( sigma * sqrt( dt ) ) ) * (log(St /Strike) + (r-q + 0.5*sigma**2)*dt)
+    vega = exp(-q*dt) * St * sqrt(dt) * exp(- d1**2 / 2) / sqrt(2 *3.14)
+    return  vega
+    
+print(CallVegaBS(St,t,Strike,Maturity,r,q,sigma))
+    
+# BONUS : graphs of Price, Delta and Gamma for different value of St (ceteris paribus)
+S = [70,75,80,85,90,95,100,105,110,115,120,125,130]
+callPriceGraph = [CallBS(St,t,Maturity,Strike,r,q,sigma) for St in S ]
+plt.plot(S,callPriceGraph)
+
+
+def CallBSbyMC(St,t,Strike,Maturity,r,q,sigma,numberOfSim):
+    #initialization...
+    vecX = []
+    dt = Maturity - t
+    
+    #for loop ...
+    for i in range(numberOfSim):
+        dW = gauss(0.0,sqrt(dt))
+        S_T = St * exp( (r-q-0.5*sigma**2)*dt + sigma * dW) #generate S_T conditionnaly F_t (S_t)
+        Xi = exp(-r*(Maturity-t)) * max (S_T - Strike,0)
+        vecX.append(Xi)
+
+    price = np.mean(vecX) #to average over all Xs
+    stdOfX = np.std(vecX) #to get the std over all Xs
+    CI = [price - 1.96*stdOfX / sqrt(numberOfSim), price + 1.96*stdOfX / sqrt(numberOfSim)]
+    return CI
+
+numberOfSim = 200000
+print(CallBSbyMC(St,t,Strike,Maturity,r,q,sigma,numberOfSim))
+
+
+
+    
+    
+    
+    
+    
+    
+    
+    
+""" 2 - The Heston Model """
+    
+    
+# 2) Implement a function generating a trajectory in the Heston Model under RN probability
+
+def generatePathsWithHeston(dates,S0,V0,r,q,sigV,corr,kappa,theta,numberOfPaths):
+    
+    outputS = []
+    outputV = []
+    
+    for i in range(numberOfPaths):
+        S = [S0]
+        V = [V0]
+        
+        for j in range(len(dates)-1):
+            
+            #GENERATE S / V  at time t_{i+1} conditionnaly to time t_i
+            dt = dates[j+1] - dates[j]
+            
+            "Generate one stop of the bi-dimensional BM" 
+            Bs = "INCLUDE FORMULA HERE"
+            Bv = "INCLUDE FORMULA HERE" 
+            
+            "Update S and V
+            S_temp = "INCLUDE FORMULA HERE"
+            V_temp = "INCLUDE FORMULA HERE"
+            
+            S.append(S_temp)
+            V.append(V_temp)
+
+        outputS.append(S)
+        outputV.append(V)
+        
+    return [outputS,outputV]
+
+dates = [0.01*i for i in range(101)]
+S0 = 100
+V0 = 0.04 #♦ so sqrt(V0)=0.2
+r = 0.0
+q = 0.0
+sigV = 0.15
+corr = -0.5
+kappa = 0.3
+theta = 0.04 #♦ so sqrt(V0)=0.2
+numberOfPaths = 1000
+output = generatePathsWithHeston(dates,S0,V0,r,q,sigV,corr,kappa,theta,numberOfPaths)
+
+plt.plot(dates,output[0][4])
+plt.plot(dates,output[0][5])
+plt.plot(dates,output[0][6])
+plt.show()
+
+plt.plot(dates,output[1][0])
+plt.plot(dates,output[1][1])
+plt.plot(dates,output[1][2])
+plt.show()
+
+print(output[0][0][100])
+
+
+
+# 3) Compute Call Price in Heston by MC
+
+def HestonCallPriceMC(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSim):
+
+    #initialization
+    
+    dt = (T - t) / numberOfSteps
+    dates = [i*dt for i in range(numberOfSteps+1)]
+    
+    runningAv =0
+    runningVar = 0        
+    #for loop
+    for i in range(numberOfSim):
+
+        #DRAW ST CONDITIONNALY TO St
+        output = generatePathsWithHeston(dates,St,Vt,r,q,sigV,corr,kappa,theta,1)
+        ST = output[0][0][len(dates)-1]
+       
+        X = "INCLUDE FORMULA HERE" # value within the expectation
+        runningAv += "INCLUDE FORMULA HERE" #sum to get ultimately the empirical average
+        runningVar += "INCLUDE FORMULA HERE" #sum of squared values to get estimation of std
+    
+    runningAv *= "INCLUDE FORMULA HERE" #discount the expectation
+    runningAv /= "INCLUDE FORMULA HERE" #sum to average
+    
+    runningVar *= "INCLUDE FORMULA HERE"
+    runningVar /= "INCLUDE FORMULA HERE"
+    runningVar -= "INCLUDE FORMULA HERE"
+    runningVar = "INCLUDE FORMULA HERE"
+    
+    return [runningAv,runningVar]
+
+t = 0
+St = 100
+Vt = 0.04
+T = 1 
+K = 100
+kappa = 0.15
+sigV = 0.15
+theta = 0.04
+corr = -0.5
+r = 0
+q = 0
+numberOfSteps = 100
+numberOfSim = 10000
+
+callPriceByMC = HestonCallPriceMC(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSim)
+print(callPriceByMC)
+
+# 4) Monte Carlo with Antithetic variable
+
+def HestonCallPriceMC_Antithetic(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSim):
+
+    #initialization
+    dt = (T - t) / numberOfSteps
+     
+    runningAv =0
+    runningVar = 0        
+    #for loop
+    for i in range(numberOfSim):
+
+        #DRAW ST CONDITIONNALY TO St
+        S_p = St
+        S_m = St
+        V = Vt
+        for j in range(numberOfSteps):
+            dB_S = "INCLUDE FORMULA HERE"
+            dB_V = "INCLUDE FORMULA HERE"
+            S_p = "INCLUDE FORMULA HERE" 
+            S_m = "INCLUDE FORMULA HERE"
+            V = "INCLUDE FORMULA HERE"
+        #END OF DRAW ST CONDITIONNALY TO St
+        
+        X = 0.5* ( max(S_p-K,0) + max(S_m-K,0) )
+        runningAv += X
+        runningVar += X**2
+    
+    runningAv *= exp(-r*dt*numberOfSteps)
+    runningAv /= numberOfSim
+    
+    runningVar *= exp(-2*r*dt*numberOfSteps)
+    runningVar /= numberOfSim
+    runningVar -= runningAv**2
+    runningVar = sqrt(runningVar/numberOfSim)
+    
+    return [runningAv,runningVar]    
+
+
+numberOfSim = 10000
+numberOfSimAnti = 5000
+callPriceByMC = HestonCallPriceMC(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSim)
+callPriceByMCAnti = HestonCallPriceMC_Antithetic(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSimAnti)
+print(callPriceByMC)
+print(callPriceByMCAnti)
+
+
+# 5) Monte Carlo with Control Variate
+
+def HestonCallPriceMC_Control(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSim):
+
+    #initialization    
+    dt = (T - t) / numberOfSteps
+    runningAv =0
+    runningVar = 0        
+    
+    #for loop
+    for i in range(numberOfSim):
+
+        #DRAW ST CONDITIONNALY TO St
+        S = St
+        S_c = St
+        V = Vt
+        for j in range(numberOfSteps):
+            dB_S = "INCLUDE FORMULA HERE"
+            dB_V = "INCLUDE FORMULA HERE"
+            S = "INCLUDE FORMULA HERE"
+            S_c = "INCLUDE FORMULA HERE" #use for the control variate
+            V = "INCLUDE FORMULA HERE"
+        #END OF DRAW ST CONDITIONNALY TO St
+        
+        X = "INCLUDE FORMULA HERE" 
+        runningAv += X
+        runningVar += X**2
+    
+    runningAv *= exp(-r*dt*numberOfSteps)
+    runningAv += BlackScholesCallPrice(t,St,T,K,r,q,sqrt(Vt))
+    runningAv /= numberOfSim
+    
+    runningVar *= exp(-2*r*dt*numberOfSteps)
+    runningVar /= numberOfSim
+    runningVar -= runningAv**2
+    runningVar = sqrt(runningVar/numberOfSim)
+    
+    return [runningAv,runningVar]    
+
+numberOfSim = 10000
+numberOfSimAnti = 5000
+callPriceByMC = HestonCallPriceMC(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSim)
+callPriceByMCAnti = HestonCallPriceMC_Antithetic(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSimAnti)
+callPriceByMCControl = HestonCallPriceMC_Control(t,St,Vt,T,K,r,q,kappa, theta, sigV, corr, numberOfSteps,numberOfSim)
+print(callPriceByMC)
+print(callPriceByMCAnti)
+print(callPriceByMCControl)
+
+
+
+
+""" 3 - Barrier Option : Up-and-In Put """
+     
+# 1) Price of UIP under Black-Scholes using MC
+
+def BS_UIP_PriceByMC(t,St,T,B,K,r,q,sigma,numOfSim,numOfDisc):
+    
+    dt = (T - t)/numOfDisc
+    drift = (r - q - 0.5*sigma**2)*dt
+    vol = sigma*sqrt(dt)
+    
+    mean = 0.0
+    std = 0.0
+    for i in range(numOfSim):
+        S = St
+        maxi = St
+        for j in range(numOfDisc):
+            S *= "INCLUDE FORMULA HERE"
+            maxi = "INCLUDE FORMULA HERE"
+        "INCLUDE PAYOFF CALCULATION HERE"
+    mean *= (exp(-r*(T - t))/numOfSim)
+    std = sqrt((exp(-2*r*(T - t))*std/numOfSim - mean*mean)/numOfSim)
+    rslt = [mean,std]
+    return rslt
+
+t = 0
+St = 100
+T = 1
+K = 100
+B = 105
+r = 0.01
+q = 0.0
+sigma = 0.2
+numOfSim = 10000
+numOfDisc = 10000
+alpha = 1.0-2.0*(r-q)/(sigma**2)
+Kprime = ((St/B)**2)*K
+price1 = BS_UIP_PriceByMC(t,St,T,B,K,r,q,sigma,numOfSim,numOfDisc)
+
+# 2) Comparison of price with the closed form formula
+
+price2 = ((St/B)**(alpha-2.0))*BlackScholesPutPrice(t,St,T,Kprime,r,q,sigma)
+print(price1)
+print(price2)
+
+
+
+# 3) Price of UIP under Black-Scholes using MC    
+    
+def Heston_UIC_PriceByMC("Include Paramers"):
+    
+    "INCLUDE USEFULL INITIALIZATION"
+    
+    mean = 0.0
+    std = 0.0
+    for i in range(numOfSim):
+        S = St
+        V = Vt
+        maxi = Mt
+        for j in range(numOfDisc):
+            S *= "INCLUDE FORMULA HERE"
+            V *= "INCLUDE FORMULA HERE"
+            maxi = max(maxi,S)
+        "INCLUDE PAYOFF CALCULATION HERE"
+    mean *= (exp(-r*dt)/numOfSim)
+    std = sqrt((std/numOfSim - mean*mean)/numOfSim)
+    rslt = [mean,std]
+    return rslt   
+    
+    
+# 4) Compare Delta, Gamma et Vega of the UIP under both model >> requires to assess sensitivities based on finite difference.
